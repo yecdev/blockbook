@@ -150,6 +150,7 @@ func (w *Worker) GetTransactionFromBchainTx(bchainTx *bchain.Tx, height int, spe
 	var pValInSat *big.Int
 	vins := make([]Vin, len(bchainTx.Vin))
 	rbf := false
+	valBalanceZat := bchainTx.ValueBalanceZat
 	for i := range bchainTx.Vin {
 		bchainVin := &bchainTx.Vin[i]
 		vin := &vins[i]
@@ -250,9 +251,13 @@ func (w *Worker) GetTransactionFromBchainTx(bchainTx *bchain.Tx, height int, spe
 	if w.chainType == bchain.ChainBitcoinType {
 		// for coinbase transactions valIn is 0
 		feesSat.Sub(&valInSat, &valOutSat)
+
 		if feesSat.Sign() == -1 {
-			feesSat.SetUint64(0)
+			if IsZeroBigInt(&valBalanceZat) {
+				feesSat.SetUint64(0)
+			}
 		}
+
 		pValInSat = &valInSat
 	} else if w.chainType == bchain.ChainEthereumType {
 		ets, err := w.chainParser.EthereumTypeGetErc20FromTx(bchainTx)
@@ -291,6 +296,9 @@ func (w *Worker) GetTransactionFromBchainTx(bchainTx *bchain.Tx, height int, spe
 	if bchainTx.Confirmations == 0 {
 		bchainTx.Blocktime = int64(w.mempool.GetTransactionTime(bchainTx.Txid))
 	}
+	// for transaction involving shielded addresses, add valueBalanceZat to fees ... for fully transparent txes it's zero anyway
+	feesSat.Add(&feesSat, &valBalanceZat)
+
 	r := &Tx{
 		Blockhash:        blockhash,
 		Blockheight:      height,
@@ -301,6 +309,7 @@ func (w *Worker) GetTransactionFromBchainTx(bchainTx *bchain.Tx, height int, spe
 		Txid:             bchainTx.Txid,
 		ValueInSat:       (*Amount)(pValInSat),
 		ValueOutSat:      (*Amount)(&valOutSat),
+		ValueBalanceZat:  (*Amount)(&valBalanceZat),
 		Version:          bchainTx.Version,
 		Hex:              bchainTx.Hex,
 		Rbf:              rbf,
@@ -323,6 +332,7 @@ func (w *Worker) GetTransactionFromMempoolTx(mempoolTx *bchain.MempoolTx) (*Tx, 
 	var ethSpecific *EthereumSpecific
 	vins := make([]Vin, len(mempoolTx.Vin))
 	rbf := false
+	valBalanceSat := mempoolTx.ValueBalanceZat
 	for i := range mempoolTx.Vin {
 		bchainVin := &mempoolTx.Vin[i]
 		vin := &vins[i]
@@ -373,9 +383,13 @@ func (w *Worker) GetTransactionFromMempoolTx(mempoolTx *bchain.MempoolTx) (*Tx, 
 	if w.chainType == bchain.ChainBitcoinType {
 		// for coinbase transactions valIn is 0
 		feesSat.Sub(&valInSat, &valOutSat)
+
 		if feesSat.Sign() == -1 {
-			feesSat.SetUint64(0)
+			if IsZeroBigInt(&valBalanceSat) {
+				feesSat.SetUint64(0)
+			}
 		}
+
 		pValInSat = &valInSat
 	} else if w.chainType == bchain.ChainEthereumType {
 		if len(mempoolTx.Vout) > 0 {
@@ -392,6 +406,10 @@ func (w *Worker) GetTransactionFromMempoolTx(mempoolTx *bchain.MempoolTx) (*Tx, 
 			Data:     ethTxData.Data,
 		}
 	}
+
+	// for transaction involving shielded addresses, add valueBalanceZat to fees ... for fully transparent txes it's zero anyway
+	feesSat.Add(&feesSat, &valBalanceSat)
+
 	r := &Tx{
 		Blocktime:        mempoolTx.Blocktime,
 		FeesSat:          (*Amount)(&feesSat),
@@ -399,6 +417,7 @@ func (w *Worker) GetTransactionFromMempoolTx(mempoolTx *bchain.MempoolTx) (*Tx, 
 		Txid:             mempoolTx.Txid,
 		ValueInSat:       (*Amount)(pValInSat),
 		ValueOutSat:      (*Amount)(&valOutSat),
+		ValueBalanceZat:  (*Amount)(&mempoolTx.ValueBalanceZat),
 		Version:          mempoolTx.Version,
 		Hex:              mempoolTx.Hex,
 		Rbf:              rbf,
@@ -1568,14 +1587,17 @@ func (w *Worker) GetFeeStats(bid string) (*FeeStats, error) {
 			feeSat = feeSat.Add(&input.ValueSat, feeSat)
 		}
 
-		// Zero inputs means it's a Coinbase TX - skip it
-		if feeSat.Cmp(big.NewInt(0)) == 0 {
-			continue
-		}
+		// Zero inputs means it's a Coinbase TX - skip it ... or unshielding - don't skip
+		//if feeSat.Cmp(big.NewInt(0)) == 0 {
+		//	continue
+		//}
 
 		for _, output := range txAddresses.Outputs {
 			feeSat = feeSat.Sub(feeSat, &output.ValueSat)
 		}
+
+		// we don't have valueBalanceZat array to add them, TODO: store them somehow in txAddresses
+
 		totalFeesSat.Add(totalFeesSat, feeSat)
 
 		// Convert feeSat to fee per kilobyte and add to an array for decile calculation
@@ -1641,7 +1663,8 @@ func (w *Worker) GetBlock(bid string, page int, txsOnPage int) (*Block, error) {
 	txs := make([]*Tx, to-from)
 	txi := 0
 	for i := from; i < to; i++ {
-		txs[txi], err = w.txFromTxid(bi.Txids[i], bestheight, AccountDetailsTxHistoryLight, dbi)
+		//txs[txi], err = w.txFromTxid(bi.Txids[i], bestheight, AccountDetailsTxHistoryLight, dbi)
+		txs[txi], err = w.txFromTxid(bi.Txids[i], bestheight, AccountDetailsTxHistory, dbi)
 		if err != nil {
 			return nil, err
 		}
@@ -1713,7 +1736,8 @@ func (w *Worker) ComputeFeeStats(blockFrom, blockTo int, stopCompute chan os.Sig
 					glog.Info("ComputeFeeStats interrupted at height ", block)
 					return db.ErrOperationInterrupted
 				default:
-					tx, err := w.txFromTxid(txid, bestheight, AccountDetailsTxHistoryLight, dbi)
+					//tx, err := w.txFromTxid(txid, bestheight, AccountDetailsTxHistoryLight, dbi)
+					tx, err := w.txFromTxid(txid, bestheight, AccountDetailsTxHistory, dbi)
 					if err != nil {
 						return err
 					}

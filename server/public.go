@@ -688,9 +688,11 @@ func (s *PublicServer) explorerAddress(w http.ResponseWriter, r *http.Request) (
 		return errorTpl, nil, api.NewAPIError("Missing address", true)
 	}
 	s.metrics.ExplorerViews.With(common.Labels{"action": "address"}).Inc()
-	page, _, _, filter, filterParam, _ := s.getAddressQueryParams(r, api.AccountDetailsTxHistoryLight, txsOnPage)
+	//page, _, _, filter, filterParam, _ := s.getAddressQueryParams(r, api.AccountDetailsTxHistoryLight, txsOnPage)
+	page, _, _, filter, filterParam, _ := s.getAddressQueryParams(r, api.AccountDetailsTxHistory, txsOnPage)
 	// do not allow details to be changed by query params
-	address, err := s.api.GetAddress(addressParam, page, txsOnPage, api.AccountDetailsTxHistoryLight, filter)
+	//address, err := s.api.GetAddress(addressParam, page, txsOnPage, api.AccountDetailsTxHistoryLight, filter)
+	address, err := s.api.GetAddress(addressParam, page, txsOnPage, api.AccountDetailsTxHistory, filter)
 	if err != nil {
 		return errorTpl, nil, err
 	}
@@ -719,9 +721,11 @@ func (s *PublicServer) explorerXpub(w http.ResponseWriter, r *http.Request) (tpl
 		return errorTpl, nil, api.NewAPIError("Missing xpub", true)
 	}
 	s.metrics.ExplorerViews.With(common.Labels{"action": "xpub"}).Inc()
-	page, _, _, filter, filterParam, gap := s.getAddressQueryParams(r, api.AccountDetailsTxHistoryLight, txsOnPage)
+	//page, _, _, filter, filterParam, gap := s.getAddressQueryParams(r, api.AccountDetailsTxHistoryLight, txsOnPage)
+	page, _, _, filter, filterParam, gap := s.getAddressQueryParams(r, api.AccountDetailsTxHistory, txsOnPage)
 	// do not allow txsOnPage and details to be changed by query params
-	address, err := s.api.GetXpubAddress(xpub, page, txsOnPage, api.AccountDetailsTxHistoryLight, filter, gap)
+	//address, err := s.api.GetXpubAddress(xpub, page, txsOnPage, api.AccountDetailsTxHistoryLight, filter, gap)
+	address, err := s.api.GetXpubAddress(xpub, page, txsOnPage, api.AccountDetailsTxHistory, filter, gap)
 	if err != nil {
 		if err == api.ErrUnsupportedXpub {
 			err = api.NewAPIError("XPUB functionality is not supported", true)

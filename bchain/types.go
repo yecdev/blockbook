@@ -78,13 +78,14 @@ type Vout struct {
 // Tx is blockchain transaction
 // unnecessary fields are commented out to avoid overhead
 type Tx struct {
-	Hex         string `json:"hex"`
-	Txid        string `json:"txid"`
-	Version     int32  `json:"version"`
-	LockTime    uint32 `json:"locktime"`
-	Vin         []Vin  `json:"vin"`
-	Vout        []Vout `json:"vout"`
-	BlockHeight uint32 `json:"blockHeight,omitempty"`
+	Hex             string  `json:"hex"`
+	Txid            string  `json:"txid"`
+	Version         int32   `json:"version"`
+	LockTime        uint32  `json:"locktime"`
+	Vin             []Vin   `json:"vin"`
+	Vout            []Vout  `json:"vout"`
+	ValueBalanceZat big.Int `json:"valueBalanceZat"`
+	BlockHeight     uint32  `json:"blockHeight,omitempty"`
 	// BlockHash     string `json:"blockhash,omitempty"`
 	Confirmations    uint32      `json:"confirmations,omitempty"`
 	Time             int64       `json:"time,omitempty"`
@@ -108,6 +109,7 @@ type MempoolTx struct {
 	LockTime         uint32          `json:"locktime"`
 	Vin              []MempoolVin    `json:"vin"`
 	Vout             []Vout          `json:"vout"`
+	ValueBalanceZat  big.Int         `json:"valueBalanceZat"`
 	Blocktime        int64           `json:"blocktime,omitempty"`
 	Erc20            []Erc20Transfer `json:"-"`
 	CoinSpecificData interface{}     `json:"-"`
